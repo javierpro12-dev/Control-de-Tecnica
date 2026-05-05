@@ -138,16 +138,30 @@ function init() {
       const anguloRodilla = calcularAngulo(hip, knee, ankle);
       const colapso = knee.x < ankle.x - 0.03;
 
-      // 🔢 lógica de repeticiones
-      if (anguloRodilla < 120 && estado === "arriba") {
-        estado = "abajo";
-      }
+      // 🔢 lógica de repeticiones (mejorada)
 
-      if (anguloRodilla > 160 && estado === "abajo") {
-        estado = "arriba";
-        repeticiones++;
-        hablar("repetición");
-      }
+// inicio de la rep
+if (anguloRodilla < 120 && estado === "arriba") {
+  estado = "abajo";
+  colapsoEnRep = false;
+}
+
+// detectar error durante la rep
+if (anguloRodilla < 120 && colapso) {
+  colapsoEnRep = true;
+}
+
+// fin de la rep
+if (anguloRodilla > 160 && estado === "abajo") {
+  estado = "arriba";
+
+  if (!colapsoEnRep) {
+    repeticiones++;
+    hablar("bien");
+  } else {
+    hablar("rodilla afuera");
+  }
+}
 
       // 🎯 feedback + audio
       let mensajeActual = "";
