@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Control de Sentadilla</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
+
+<style>
+body {
+  background: #111;
+  color: white;
+  text-align: center;
+  font-family: Arial;
+}
+canvas {
+  width: 95%;
+  max-width: 500px;
+  margin-top: 10px;
+}
+button {
+  padding: 14px;
+  font-size: 18px;
+  border-radius: 10px;
+  border: none;
+  background: #00c853;
+  color: white;
+}
+</style>
+</head>
+
+<body>
+
+<h2>Control de Sentadilla</h2>
+<button onclick="startCamera()">Iniciar cámara</button>
+
+<br>
+
+<video id="video" style="display:none"></video>
+<canvas id="canvas"></canvas>
+
+<script>
+
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+let camera;
+
+// 🔢 contador
+let estado = "arriba";
+let repeticiones = 0;
+
+// 🔊 control de voz
+let ultimoMensaje = "";
+
+// 🔊 función hablar
+function hablar(texto) {
+  if (speechSynthesis.speaking) return; // evita superposición
+  const msg = new SpeechSynthesisUtterance(texto);
+  msg.lang = "es-ES";
+  msg.rate = 1;
+  speechSynthesis.speak(msg);
+}
+
+// 📐 cálculo de ángulo
+function calcularAngulo(a, b, c) {
+  const ab = { x: a.x - b.x, y: a.y - b.y };
+  const cb = { x: c.x - b.x, y: c.y - b.y };
+
+  const dot = (ab.x * cb.x + ab.y * cb.y);
+  const magAB = Math.sqrt(ab.x**2 + ab.y**2);
+  const magCB = Math.sqrt(cb.x**2 + cb.y**2);
+
+  const angulo = Math.acos(dot / (magAB * magCB));
+  return angulo * (180 / Math.PI);
+}
+
+function startCamera() {
+  navigator.mediaDevices.getUserMedia({
+    video: {
+      facingMode: "user",
+      width: { ideal: 640 },
+      height: { ideal: 480 }
+    }
+  })
+  .then(stream => {
+    video.srcObject = stream;
+
+    video.onloadedmetadata = () => {
+      video.play();
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+
+      init();
+    };
+  })
+  .catch(err => alert(err));
+}
+
+function init() {
+
+  const pose = new Pose({
+    locateFile: (file) => {
+      return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
+    }
+  });
+
+  pose.setOptions({
+    modelComplexity: 0,
+    smoothLandmarks: true,
+    minDetectionConfidence: 0.5,
+    minTrackingConfidence: 0.5
+  });
+
+  pose.onResults((results) => {
+
+    if (!video.videoWidth) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    if (results.poseLandmarks) {
+
+      drawConnectors(ctx, results.poseLandmarks, POSE_CONNECTIONS,
+        { color: '#00FF00', lineWidth: 3 });
+
+      drawLandmarks(ctx, results.poseLandmarks,
+        { color: '#FF0000', lineWidth: 2 });
+
+      const hip = results.poseLandmarks[23];
+      const knee = results.poseLandmarks[25];
+      const ankle = results.poseLandmarks[27];
+
+      const anguloRodilla = calcularAngulo(hip, knee, ankle);
+      const colapso = knee.x < ankle.x - 0.03;
+
+      // 🔢 lógica de repeticiones
+      if (anguloRodilla < 120 && estado === "arriba") {
+        estado = "abajo";
+      }
+
+      if (anguloRodilla > 160 && estado === "abajo") {
+        estado = "arriba";
+        repeticiones++;
+        hablar("repetición");
+      }
+
+      // 🎯 feedback + audio
+      let mensajeActual = "";
+
+      if (anguloRodilla < 120) {
+        if (colapso) {
+          mensajeActual = "rodilla mal";
+          showText("RODILLA HACIA ADENTRO ❌", "red", 60);
+        } else {
+          mensajeActual = "bien";
+          showText("BIEN ✔", "lime", 60);
+        }
+      } else {
+        mensajeActual = "baja mas";
+        showText("BAJÁ MÁS", "yellow", 60);
+      }
+
+      // 🔊 hablar solo si cambia
+      if (mensajeActual !== ultimoMensaje) {
+        hablar(mensajeActual);
+        ultimoMensaje = mensajeActual;
+      }
+
+      // 🔢 mostrar reps (más grande)
+      ctx.fillStyle = "white";
+      ctx.font = "36px Arial";
+      ctx.fillText("REPS: " + repeticiones, 20, 110);
+    }
+  });
+
+  camera = new Camera(video, {
+    onFrame: async () => {
+      await pose.send({ image: video });
+    },
+    width: 640,
+    height: 480
+  });
+
+  camera.start();
+}
+
+function showText(text, color, y) {
+  ctx.fillStyle = color;
+  ctx.font = "32px Arial";
+  ctx.fillText(text, 20, y);
+}
+
+</script>
+
+</body>
+</html>
