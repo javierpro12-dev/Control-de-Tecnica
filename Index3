@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
+
+<title>Rehab Rodilla</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
+
+<style>
+body {
+  background:#111;
+  color:white;
+  text-align:center;
+  font-family:Arial;
+}
+canvas {
+  width:95%;
+  max-width:500px;
+}
+button {
+  padding:16px;
+  font-size:18px;
+  border-radius:10px;
+  border:none;
+  background:#00c853;
+  color:white;
+}
+</style>
+</head>
+
+<body>
+
+<h2>Control de Sentadilla</h2>
+<button onclick="startCamera()">Iniciar cámara</button>
+
+<video id="video" style="display:none"></video>
+<canvas id="canvas"></canvas>
+
+<script>
+
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+let camera;
+
+// lógica
+let estado = "arriba";
+let reps = 0;
+let colapsoEnRep = false;
+
+// voz
+function hablar(txt){
+  if (speechSynthesis.speaking) return;
+  let msg = new SpeechSynthesisUtterance(txt);
+  msg.lang="es-ES";
+  speechSynthesis.speak(msg);
+}
+
+// ángulo
+function ang(a,b,c){
+  const ab={x:a.x-b.x,y:a.y-b.y};
+  const cb={x:c.x-b.x,y:c.y-b.y};
+  const dot=ab.x*cb.x+ab.y*cb.y;
+  const mag1=Math.hypot(ab.x,ab.y);
+  const mag2=Math.hypot(cb.x,cb.y);
+  return Math.acos(dot/(mag1*mag2))*180/Math.PI;
+}
+
+function startCamera(){
+  navigator.mediaDevices.getUserMedia({ video:true })
+  .then(stream=>{
+    video.srcObject=stream;
+
+    video.onloadedmetadata=()=>{
+      video.play();
+      canvas.width=video.videoWidth;
+      canvas.height=video.videoHeight;
+      init();
+    };
+  });
+}
+
+function init(){
+
+  const pose=new Pose({
+    locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}`
+  });
+
+  pose.onResults(res=>{
+
+    if(video.readyState<2) return;
+
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(video,0,0,canvas.width,canvas.height);
+
+    if(!res.poseLandmarks) return;
+
+    drawConnectors(ctx,res.poseLandmarks,POSE_CONNECTIONS);
+    drawLandmarks(ctx,res.poseLandmarks);
+
+    const hip=res.poseLandmarks[23];
+    const knee=res.poseLandmarks[25];
+    const ankle=res.poseLandmarks[27];
+
+    const angulo=ang(hip,knee,ankle);
+    const colapso=knee.x < ankle.x - 0.03;
+
+    // inicio
+    if(angulo<120 && estado==="arriba"){
+      estado="abajo";
+      colapsoEnRep=false;
+    }
+
+    // error durante
+    if(angulo<120 && colapso){
+      colapsoEnRep=true;
+    }
+
+    // fin
+    if(angulo>160 && estado==="abajo"){
+      estado="arriba";
+
+      if(!colapsoEnRep){
+        reps++;
+        hablar("bien");
+      }else{
+        hablar("rodilla afuera");
+      }
+    }
+
+    // texto
+    ctx.fillStyle="white";
+    ctx.font="36px Arial";
+    ctx.fillText("REPS: "+reps,20,60);
+
+  });
+
+  camera=new Camera(video,{
+    onFrame:async()=>{
+      await pose.send({image:video});
+    }
+  });
+
+  camera.start();
+}
+
+</script>
+
+</body>
+</html>
