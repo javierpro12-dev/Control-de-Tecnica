@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Control de Sentadilla</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
+
+<style>
+body {
+  background: #111;
+  color: white;
+  text-align: center;
+  font-family: Arial;
+}
+canvas {
+  width: 95%;
+  max-width: 500px;
+  margin-top: 10px;
+}
+button {
+  padding: 12px;
+  font-size: 16px;
+  border-radius: 8px;
+  border: none;
+  background: #00c853;
+  color: white;
+}
+</style>
+</head>
+
+<body>
+
+<h2>Control de Sentadilla</h2>
+<button onclick="startCamera()">Iniciar cámara</button>
+
+<br>
+
+<video id="video" style="display:none"></video>
+<canvas id="canvas"></canvas>
+
+<script>
+
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+let camera;
+
+function startCamera() {
+  navigator.mediaDevices.getUserMedia({ video: true })
+  .then(stream => {
+    video.srcObject = stream;
+    video.onloadedmetadata = () => {
+      video.play();
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+
+      init();
+    };
+  })
+  .catch(err => alert(err));
+}
+
+function init() {
+
+  const pose = new Pose({
+    locateFile: (file) => {
+      return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
+    }
+  });
+
+  pose.setOptions({
+    modelComplexity: 0,
+    smoothLandmarks: true,
+    minDetectionConfidence: 0.5,
+    minTrackingConfidence: 0.5
+  });
+
+  pose.onResults((results) => {
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    if (results.poseLandmarks) {
+
+      drawConnectors(ctx, results.poseLandmarks, POSE_CONNECTIONS,
+        { color: '#00FF00', lineWidth: 2 });
+
+      drawLandmarks(ctx, results.poseLandmarks,
+        { color: '#FF0000', lineWidth: 1 });
+
+      const knee = results.poseLandmarks[25];
+      const ankle = results.poseLandmarks[27];
+
+      if (knee.x < ankle.x - 0.03) {
+        ctx.fillStyle = "red";
+        ctx.fillText("Rodilla hacia adentro ❌", 20, 40);
+      } else {
+        ctx.fillStyle = "lime";
+        ctx.fillText("Alineación correcta ✔", 20, 40);
+      }
+    }
+  });
+
+  camera = new Camera(video, {
+    onFrame: async () => {
+      await pose.send({ image: video });
+    },
+    width: 640,
+    height: 480
+  });
+
+  camera.start();
+}
+
+</script>
+
+</body>
+</html>
