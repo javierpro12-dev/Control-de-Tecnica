@@ -36,17 +36,7 @@ button {
 <h2>Control de Sentadilla</h2>
 <button onclick="startCamera()">Iniciar cámara</button>
 
-<button onclick="fullscreen()">Pantalla completa</button>
-
-function fullscreen() {
-  const elem = document.documentElement;
-
-  if (elem.requestFullscreen) {
-    elem.requestFullscreen();
-  } else if (elem.webkitRequestFullscreen) {
-    elem.webkitRequestFullscreen();
-  }
-}
+<button onclick="fullscreen()">Pantalla completa</button> 
   
 <br>
 
@@ -225,3 +215,12 @@ function showText(text, color, y) {
 
 </body>
 </html>
+function fullscreen() {
+  const elem = document.documentElement;
+
+  if (elem.requestFullscreen) {
+    elem.requestFullscreen();
+  } else if (elem.webkitRequestFullscreen) {
+    elem.webkitRequestFullscreen();
+  }
+}
