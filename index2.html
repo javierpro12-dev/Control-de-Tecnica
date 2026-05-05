@@ -37,6 +37,16 @@ button {
 <button onclick="startCamera()">Iniciar cámara</button>
 
 <button onclick="fullscreen()">Pantalla completa</button>
+
+function fullscreen() {
+  const elem = document.documentElement;
+
+  if (elem.requestFullscreen) {
+    elem.requestFullscreen();
+  } else if (elem.webkitRequestFullscreen) {
+    elem.webkitRequestFullscreen();
+  }
+}
   
 <br>
 
